@@ -2,7 +2,7 @@
   "name": "knox-steroids",
   "description": "A S3 knox library with steroids",
   "homepage": "https://github.com/Kikobeats/knox-steroids",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "./index.js",
   "author": {
     "name": "Kiko Beats",
@@ -13,7 +13,12 @@
   "bugs": {
     "url": "https://github.com/Kikobeats/knox-steroids/issues"
   },
-  "keywords": ["knox", "s3", "amazon", "aws"],
+  "keywords": [
+    "knox",
+    "s3",
+    "amazon",
+    "aws"
+  ],
   "dependencies": {
     "coffee-script": "*",
     "async": "~1.2.1",
