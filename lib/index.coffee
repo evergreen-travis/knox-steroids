@@ -107,7 +107,7 @@ module.exports = class knoxSteroids extends knox
 
     filename = filename.toString()
 
-    headers['Accept-Encoding:'] = gzip
+    headers['Accept-Encoding:'] = 'gzip'
 
     @getFile filename, headers, (err, res) ->
       return cb err if err
