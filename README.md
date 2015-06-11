@@ -30,16 +30,16 @@ var S3Client = new knoxSteroids({
 
 The same knox methods and:
 
-.listFiles
-.deleteFolders
-.deleteFolder
-.isEmpty
-.putGzipFile
-.putJSON
-.putGzip
-.getGzip
-.getJSONGzipped
-.getJSON
+* .listFiles
+* .deleteFolders
+* .deleteFolder
+* .isEmpty
+* .putGzipFile
+* .putJSON
+* .putGzip
+* .getGzip
+* .getJSONGzipped
+* .getJSON
 
 ## License
 
