@@ -4,6 +4,10 @@ zlib  = require 'zlib'
 async = require 'async'
 knox  = require 'knox'
 
+registerReqListeners = (req, fn) ->
+  req.on 'response', (res) -> fn(null, res)
+  req.on('error', fn)
+
 module.exports = class knoxSteroids extends knox
 
   constructor: (options) ->
@@ -95,7 +99,15 @@ module.exports = class knoxSteroids extends knox
       req.end data
       req.on 'response', (res) -> cb res.statusCode != 200, res
 
+  getJSONGzipped: (filename, headers, cb) ->
+    if arguments.length == 2
+      cb = headers
+      headers = {}
+
+    @getGzip parseJSON: true, filename, headers, cb
+
   getGzip: (opts, filename, headers, cb) ->
+
     if arguments.length == 2
       cb = headers
       headers = {}
@@ -106,29 +118,28 @@ module.exports = class knoxSteroids extends knox
       opts = parseJSON: false
 
     filename = filename.toString()
+    headers['Accept-Encoding'] = 'gzip'
 
-    headers['Accept-Encoding:'] = 'gzip'
+    req = @get filename, headers
 
-    @getFile filename, headers, (err, res) ->
-      return cb err if err
-      buffer = ''
+    registerReqListeners req, (err, res) ->
+      return cb(err) if (err)
+
       gunzip = zlib.createGunzip()
       res.pipe gunzip
+      buffer = ''
 
-      gunzip.on 'data', (data) -> buffer += data.toString 'utf8'
+      gunzip.on 'data', (data) ->
+        buffer += data.toString 'utf8'
 
       gunzip.on 'end', ->
         result = if opts.parseJSON then JSON.parse buffer else buffer.toString()
         cb null, result
 
-      gunzip.on 'error', (err) -> cb err
+      gunzip.on 'error', cb
 
-  getJSONGzipped: (filename, headers, cb) ->
-    if arguments.length == 2
-      cb = headers
-      headers = {}
-
-    @getGzip parseJSON: true, filename, headers, cb
+    req.end()
+    req
 
   getJSON: (filename, headers, cb) ->
     if arguments.length == 2
