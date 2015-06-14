@@ -1,12 +1,28 @@
 'use strict'
 
+os    = require 'os'
+knox  = require 'knox'
 zlib  = require 'zlib'
 async = require 'async'
-knox  = require 'knox'
+Args  = require 'args-js'
 
-registerReqListeners = (req, fn) ->
-  req.on 'response', (res) -> fn(null, res)
-  req.on('error', fn)
+DEFAULT =
+  headers: []
+  sort: null
+  map: (file) -> file.Key
+
+prefixPath = (filePath) ->
+  filePath = '/' + filePath if filePath.charAt(0) isnt '/'
+  filePath
+
+postfixPath = (filePath) ->
+  filePath += '/' if filePath.charAt(filePath.length - 1) isnt '/'
+  filePath
+
+stringify = (data) ->
+  return data if typeof data is 'string'
+  return data.toString() if typeof data is 'number'
+  JSON.stringify(data, null, 2) + os.EOL
 
 module.exports = class knoxSteroids extends knox
 
@@ -14,146 +30,141 @@ module.exports = class knoxSteroids extends knox
     super options
     this
 
-  listFiles: (filename, mapFn, sortFn, cb) ->
+  listFiles: ->
+    args = Args([
+      { filename : Args.STRING   | Args.Required                          }
+      { mapFn    : Args.FUNCTION | Args.Optional, _default : DEFAULT.map  }
+      { sortFn   : Args.FUNCTION | Args.Optional, _default : DEFAULT.sort }
+      { cb       : Args.FUNCTION | Args.Required                          }
+      ], arguments)
 
-    defaultMapFn = (file) -> file.Key
+    args.filename = stringify args.filename
 
-    if arguments.length == 2
-      cb = mapFn
-      mapFn = defaultMapFn
-      sortFn = null
+    @list prefix: args.filename, (err, data) ->
+      return args.cb err if err
+      fileNames = data.Contents.map args.mapFn
+      args.cb null, fileNames.sort args.sortFn
 
-    mapFn = defaultMapFn if mapFn == null
+  deleteFolder: =>
+    args = Args([
+      { filename : Args.STRING   | Args.Required }
+      { cb       : Args.FUNCTION | Args.Required }
+      ], arguments)
 
-    filename = filename.toString()
-    filename += '/' if filename.charAt(filename.length - 1) != '/'
+    @listFiles args.filename, (err, filenames) =>
+      return args.cb err if err
+      @deleteMultiple filenames, args.cb
 
-    @list prefix: filename, (err, data) ->
-      return cb err if err
-      fileNames = data.Contents.map mapFn
-      cb null, fileNames.sort sortFn
+  deleteFolders: ->
+    args = Args([
+      { filename : Args.ARRAY    | Args.Required }
+      { cb       : Args.FUNCTION | Args.Required }
+      ], arguments)
 
-  deleteFolders: (filenames, cb) ->
-    async.forEach filenames, @deleteFolder, cb
+    async.forEach args.filenames, @deleteFolder, args.cb
 
-  deleteFolder: (filename, cb) =>
-    filename = filename.toString()
-    @listFiles filename, (err, filenames) =>
-      return cb err if err
-      @deleteMultiple filenames, cb
+  isEmpty: ->
+    args = Args([
+      { filename : Args.STRING   | Args.Required }
+      { mapFn    : Args.FUNCTION | Args.Optional }
+      { sortFn   : Args.FUNCTION | Args.Optional }
+      { cb       : Args.FUNCTION | Args.Required }
+      ], arguments)
 
-  isEmpty: (filename, cb) ->
-    filename = filename.toString()
-    @listFiles filename, (err, files) ->
-      return cb err if err
-      cb null, files.length == 0, files
+    @listFiles args.filename, args.mapFn, args.sortFn, (err, files) ->
+      return args.cb err if err
+      args.cb null, files.length == 0, files
 
-  putGzipFile: (src, filename, headers, cb) ->
-    if arguments.length == 3
-      cb = headers
-      headers = {}
+  putGzip: ->
+    args = Args([
+      [
+        { data   : Args.STRING | Args.Required                           }
+        { data : Args.OBJECT | Args.Required, _check : DEFAULT.stringify }
+      ],
+      { filename : Args.STRING | Args.Required                             }
+      { headers  : Args.OBJECT | Args.Optional, _default : DEFAULT.headers }
+      { cb       : Args.FUNCTION | Args.Required                           }
+      ], arguments)
 
-    src = src.toString()
-    filename = filename.toString()
+    args.data = stringify args.data
+    args.filename = prefixPath args.filename
+    args.headers['Content-Encoding'] = 'gzip'
 
-    headers['Content-Type'] = 'application/x-gzip'
-    headers['Content-Encoding'] = 'gzip'
+    buffer = new Buffer args.data
+    zlib.gzip buffer, (err, encoded) =>
+      @putBuffer encoded, args.filename, args.headers, (err, res) ->
+        return args.cb err if err
+        args.cb res.statusCode != 200, res
 
-    @putFile src, filename, headers, (err, res) ->
-      return cb err if err
-      cb res.statusCode == 200, res
+  putGzipFile: ->
+    args = Args([
+      { src      : Args.STRING   | Args.Required, _check : DEFAULT.checkPath   }
+      { filename : Args.STRING   | Args.Required  _check : DEFAULT.checkPath   }
+      { headers  : Args.OBJECT | Args.Optional, _default : {}                  }
+      { cb       : Args.FUNCTION | Args.Required                               }
+      ], arguments)
 
-  putJSON: (data, filename, headers, cb) ->
-    if arguments.length == 3
-      cb = headers
-      headers = {}
+    @putFile args.src, args.filename, args.headers, (err, res) ->
+      return args.cb err if err
+      args.cb res.statusCode != 200, res
 
-    data = JSON.stringify data if typeof data == 'object'
-    filename = filename.toString()
+  putJSON: ->
+    args = Args([
+      { data     : Args.STRING   | Args.Required, _check : DEFAULT.stringify   }
+      { filename : Args.STRING   | Args.Required  _check : DEFAULT.checkPath   }
+      { headers  : Args.OBJECT | Args.Optional, _default : {}                  }
+      { cb       : Args.FUNCTION | Args.Required                               }
+      ], arguments)
 
-    headers['Content-Length'] = Buffer.byteLength(data)
-    headers['Content-Type'] = 'application/json'
+    buffer = new Buffer args.data
+    @putBuffer buffer, filename, headers (err, rest) ->
+      return args.cb err if err
+      args.cb res.statusCode != 200, res
 
-    req = @put filename, headers
-    req.on 'response', (res) -> cb res.statusCode != 200, res
-    req.end data
+  getJSON:  ->
+    args = Args([
+      { filename : Args.STRING   | Args.Required              }
+      { headers  : Args.OBJECT | Args.Optional, _default : {} }
+      { cb       : Args.FUNCTION | Args.Required              }
+      ], arguments)
 
-  putGzip: (data, filename, headers, cb) ->
-    if arguments.length == 3
-      cb = headers
-      headers = {}
+    args.filename = prefixPath args.filename
 
-    filename = filename.toString()
+    @getFile args.filename, args.headers, (err, res) ->
+      chunks = []
+      # res.setEncoding 'utf8' # TODO: warning
+      res.on 'data', (chunk) -> chunks.push chunk
+      res.on 'end', -> args.cb null, JSON.parse(chunks)
+      res.on 'error', args.cb
 
-    headers['Content-Type'] = 'application/x-gzip'
-    headers['Content-Encoding'] = 'gzip'
+  getGzip: ->
+    args = Args([
+      { filename : Args.STRING   | Args.Required              }
+      { headers  : Args.OBJECT | Args.Optional, _default : {} }
+      { cb       : Args.FUNCTION | Args.Required              }
+      ], arguments)
 
-    buffer = new Buffer(JSON.stringify(data))
+    args.filename = prefixPath args.filename
 
-    zlib.gzip buffer, (err, data) =>
-      return cb err if err
+    @getFile args.filename, args.headers, (err, res) ->
+      return args.cb err if err
+      chunks = []
 
-      headers['Content-Length'] = data.length
-
-      req = @put filename, headers
-      req.end data
-      req.on 'response', (res) -> cb res.statusCode != 200, res
-
-  getJSONGzipped: (filename, headers, cb) ->
-    if arguments.length == 2
-      cb = headers
-      headers = {}
-
-    @getGzip parseJSON: true, filename, headers, cb
-
-  getGzip: (opts, filename, headers, cb) ->
-
-    if arguments.length == 2
-      cb = headers
-      headers = {}
-      opts = parseJSON: false
-
-    if arguments.length == 3
-      cb = opts
-      opts = parseJSON: false
-
-    filename = filename.toString()
-    headers['Accept-Encoding'] = 'gzip'
-
-    req = @get filename, headers
-
-    registerReqListeners req, (err, res) ->
-      return cb(err) if (err)
-
-      gunzip = zlib.createGunzip()
-      res.pipe gunzip
-      buffer = ''
-
-      gunzip.on 'data', (data) ->
-        buffer += data.toString 'utf8'
-
-      gunzip.on 'end', ->
-        result = if opts.parseJSON then JSON.parse buffer else buffer.toString()
-        cb null, result
-
-      gunzip.on 'error', cb
-
-    req.end()
-    req
-
-  getJSON: (filename, headers, cb) ->
-    if arguments.length == 2
-      cb = headers
-      headers = {}
-
-    @getFile filename, headers, (err, res) ->
-      buffer = ''
-      res.setEncoding 'utf8'
-
-      res.on 'data', (chunk) -> buffer += chunk
+      res.on 'data', (chunk) ->
+        chunks.push chunk
 
       res.on 'end', ->
-        buffer = JSON.parse(buffer)
-        cb null, buffer
+        buffer = Buffer.concat chunks
+        zlib.gunzip buffer, (err, decoded) ->
+          args.cb err, decoded.toString 'utf8'
 
-      res.on 'error', (err) -> cb err
+  getJSONGzipped: (filename, headers, cb) ->
+    args = Args([
+      { filename : Args.STRING   | Args.Required              }
+      { headers  : Args.OBJECT | Args.Optional, _default : {} }
+      { cb       : Args.FUNCTION | Args.Required              }
+      ], arguments)
+
+    args.filename = prefixPath args.filename
+    @getGzip args.filename, args.headers, (err, decoded) ->
+      args.cb err, JSON.parse decoded
