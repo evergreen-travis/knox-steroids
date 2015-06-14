@@ -7,7 +7,7 @@ async = require 'async'
 Args  = require 'args-js'
 
 DEFAULT =
-  headers: []
+  headers: {}
   sort: null
   map: (file) -> file.Key
 
@@ -19,10 +19,10 @@ postfixPath = (filePath) ->
   filePath += '/' if filePath.charAt(filePath.length - 1) isnt '/'
   filePath
 
-stringify = (data) ->
-  return data if typeof data is 'string'
-  return data.toString() if typeof data is 'number'
-  JSON.stringify(data, null, 2) + os.EOL
+stringify = (something) ->
+  return something if typeof something is 'string'
+  return something.toString() if typeof something is 'number'
+  JSON.stringify(something, null, 2) + os.EOL
 
 module.exports = class knoxSteroids extends knox
 
@@ -32,12 +32,16 @@ module.exports = class knoxSteroids extends knox
 
   listFiles: ->
     args = Args([
-      { filename : Args.STRING   | Args.Required                          }
+      [
+        { filename : Args.STRING | Args.Required }
+        { filename : Args.INT    | Args.Required }
+      ]
       { mapFn    : Args.FUNCTION | Args.Optional, _default : DEFAULT.map  }
       { sortFn   : Args.FUNCTION | Args.Optional, _default : DEFAULT.sort }
       { cb       : Args.FUNCTION | Args.Required                          }
       ], arguments)
 
+    args.filename = stringify args.filename
     @list prefix: args.filename, (err, data) ->
       return args.cb err if err
       fileNames = data.Contents.map args.mapFn
@@ -45,10 +49,14 @@ module.exports = class knoxSteroids extends knox
 
   deleteFolder: =>
     args = Args([
-      { filename : Args.STRING   | Args.Required }
+      [
+        { filename : Args.STRING | Args.Required }
+        { filename : Args.INT    | Args.Required }
+      ]
       { cb       : Args.FUNCTION | Args.Required }
       ], arguments)
 
+    args.filename = stringify args.filename
     @listFiles args.filename, (err, filenames) =>
       return args.cb err if err
       @deleteMultiple filenames, args.cb
@@ -63,12 +71,16 @@ module.exports = class knoxSteroids extends knox
 
   isEmpty: ->
     args = Args([
-      { filename : Args.STRING   | Args.Required }
+      [
+        { filename : Args.STRING | Args.Required }
+        { filename : Args.INT    | Args.Required }
+      ]
       { mapFn    : Args.FUNCTION | Args.Optional }
       { sortFn   : Args.FUNCTION | Args.Optional }
       { cb       : Args.FUNCTION | Args.Required }
       ], arguments)
 
+    args.filename = stringify args.filename
     @listFiles args.filename, args.mapFn, args.sortFn, (err, files) ->
       return args.cb err if err
       args.cb null, files.length == 0, files
@@ -76,16 +88,19 @@ module.exports = class knoxSteroids extends knox
   putGzip: ->
     args = Args([
       [
-        { data : Args.STRING | Args.Required                             }
-        { data : Args.OBJECT | Args.Required, _check : DEFAULT.stringify }
-      ],
-      { filename : Args.STRING | Args.Required                             }
-      { headers  : Args.OBJECT | Args.Optional, _default : DEFAULT.headers }
-      { cb       : Args.FUNCTION | Args.Required                           }
+        { data : Args.STRING | Args.Required }
+        { data : Args.OBJECT | Args.Required }
+      ]
+      [
+        { filename : Args.STRING | Args.Required }
+        { filename : Args.INT    | Args.Required }
+      ]
+      { headers  : Args.OBJECT   | Args.Optional, _default : DEFAULT.headers }
+      { cb       : Args.FUNCTION | Args.Required                             }
       ], arguments)
 
     args.data = stringify args.data
-    args.filename = prefixPath args.filename
+    args.filename = prefixPath stringify(args.filename)
     args.headers['Content-Encoding'] = 'gzip'
 
     buffer = new Buffer args.data
@@ -96,24 +111,40 @@ module.exports = class knoxSteroids extends knox
 
   putGzipFile: ->
     args = Args([
-      { src      : Args.STRING   | Args.Required, _check : DEFAULT.checkPath   }
-      { filename : Args.STRING   | Args.Required  _check : DEFAULT.checkPath   }
-      { headers  : Args.OBJECT | Args.Optional, _default : {}                  }
+      [
+        { src : Args.STRING | Args.Required }
+        { src : Args.INT    | Args.Required }
+      ]
+      [
+        { filename : Args.STRING | Args.Required }
+        { filename : Args.INT    | Args.Required }
+      ]
+      { headers  : Args.OBJECT   | Args.Optional, _default : DEFAULT.headers   }
       { cb       : Args.FUNCTION | Args.Required                               }
       ], arguments)
 
+    args.src = prefixPath(stringify args.src)
+    args.filename = prefixPath stringify(args.filename)
     @putFile args.src, args.filename, args.headers, (err, res) ->
       return args.cb err if err
       args.cb res.statusCode != 200, res
 
   putJSON: ->
     args = Args([
-      { data     : Args.STRING   | Args.Required, _check : DEFAULT.stringify   }
-      { filename : Args.STRING   | Args.Required  _check : DEFAULT.checkPath   }
-      { headers  : Args.OBJECT | Args.Optional, _default : {}                  }
-      { cb       : Args.FUNCTION | Args.Required                               }
+      [
+        { data : Args.STRING | Args.Required }
+        { data : Args.OBJECT | Args.Required }
+      ],
+      [
+        { filename : Args.STRING | Args.Required }
+        { filename : Args.INT    | Args.Required }
+      ]
+      { headers  : Args.OBJECT   | Args.Optional, _default : DEFAULT.headers }
+      { cb       : Args.FUNCTION | Args.Required                             }
       ], arguments)
 
+    args.data = stringify args.data
+    args.filename = prefixPath stringify(args.filename)
     buffer = new Buffer args.data
     @putBuffer buffer, filename, headers (err, rest) ->
       return args.cb err if err
@@ -121,12 +152,15 @@ module.exports = class knoxSteroids extends knox
 
   getJSON:  ->
     args = Args([
-      { filename : Args.STRING   | Args.Required              }
-      { headers  : Args.OBJECT | Args.Optional, _default : {} }
-      { cb       : Args.FUNCTION | Args.Required              }
+      [
+        { filename : Args.STRING | Args.Required }
+        { filename : Args.INT    | Args.Required }
+      ]
+      { headers  : Args.OBJECT   | Args.Optional, _default : DEFAULT.headers }
+      { cb       : Args.FUNCTION | Args.Required                             }
       ], arguments)
 
-    args.filename = prefixPath args.filename
+    args.filename = prefixPath stringify(args.filename)
 
     @getFile args.filename, args.headers, (err, res) ->
       chunks = []
@@ -136,12 +170,15 @@ module.exports = class knoxSteroids extends knox
 
   getGzip: ->
     args = Args([
-      { filename : Args.STRING   | Args.Required              }
-      { headers  : Args.OBJECT | Args.Optional, _default : {} }
-      { cb       : Args.FUNCTION | Args.Required              }
+      [
+        { filename : Args.STRING | Args.Required }
+        { filename : Args.INT    | Args.Required }
+      ]
+      { headers  : Args.OBJECT   | Args.Optional, _default : DEFAULT.headers }
+      { cb       : Args.FUNCTION | Args.Required                             }
       ], arguments)
 
-    args.filename = prefixPath args.filename
+    args.filename = prefixPath stringify(args.filename)
 
     @getFile args.filename, args.headers, (err, res) ->
       return args.cb err if err
@@ -157,11 +194,14 @@ module.exports = class knoxSteroids extends knox
 
   getJSONGzipped: (filename, headers, cb) ->
     args = Args([
-      { filename : Args.STRING   | Args.Required              }
-      { headers  : Args.OBJECT | Args.Optional, _default : {} }
-      { cb       : Args.FUNCTION | Args.Required              }
+      [
+        { filename : Args.STRING | Args.Required }
+        { filename : Args.INT    | Args.Required }
+      ]
+      { headers  : Args.OBJECT   | Args.Optional, _default : DEFAULT.headers }
+      { cb       : Args.FUNCTION | Args.Required                             }
       ], arguments)
 
-    args.filename = prefixPath args.filename
+    args.filename = prefixPath stringify(args.filename)
     @getGzip args.filename, args.headers, (err, decoded) ->
       args.cb err, JSON.parse decoded
