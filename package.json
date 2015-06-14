@@ -5,8 +5,8 @@
   "version": "0.2.0",
   "main": "./index.js",
   "author": {
-    "name": "Kiko Beats",
     "email": "josefrancisco.verdu@gmail.com",
+    "name": "Kiko Beats",
     "url": "https://github.com/Kikobeats"
   },
   "repository": "Kikobeats/knox-steroids",
@@ -14,16 +14,16 @@
     "url": "https://github.com/Kikobeats/knox-steroids/issues"
   },
   "keywords": [
-    "knox",
-    "s3",
     "amazon",
-    "aws"
+    "aws",
+    "knox",
+    "s3"
   ],
   "dependencies": {
     "args-js": "~0.10.6",
     "async": "~1.2.1",
     "coffee-script": "*",
-    "knox": "~0.9.2"b
+    "knox": "~0.9.2"
   },
   "devDependencies": {
     "mocha": "*",
