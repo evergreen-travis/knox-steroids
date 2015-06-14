@@ -38,8 +38,6 @@ module.exports = class knoxSteroids extends knox
       { cb       : Args.FUNCTION | Args.Required                          }
       ], arguments)
 
-    args.filename = stringify args.filename
-
     @list prefix: args.filename, (err, data) ->
       return args.cb err if err
       fileNames = data.Contents.map args.mapFn
@@ -78,7 +76,7 @@ module.exports = class knoxSteroids extends knox
   putGzip: ->
     args = Args([
       [
-        { data   : Args.STRING | Args.Required                           }
+        { data : Args.STRING | Args.Required                             }
         { data : Args.OBJECT | Args.Required, _check : DEFAULT.stringify }
       ],
       { filename : Args.STRING | Args.Required                             }
@@ -132,7 +130,6 @@ module.exports = class knoxSteroids extends knox
 
     @getFile args.filename, args.headers, (err, res) ->
       chunks = []
-      # res.setEncoding 'utf8' # TODO: warning
       res.on 'data', (chunk) -> chunks.push chunk
       res.on 'end', -> args.cb null, JSON.parse(chunks)
       res.on 'error', args.cb
