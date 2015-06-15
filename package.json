@@ -2,7 +2,7 @@
   "name": "knox-steroids",
   "description": "A S3 knox library with steroids",
   "homepage": "https://github.com/Kikobeats/knox-steroids",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "main": "./index.js",
   "author": {
     "email": "josefrancisco.verdu@gmail.com",
@@ -20,10 +20,10 @@
     "s3"
   ],
   "dependencies": {
-    "args-js": "*",
-    "async": "*",
-    "coffee-script": "*",
-    "knox": "*"
+    "args-js": "~0.10.6",
+    "async": "~1.2.1",
+    "coffee-script": "~1.9.3",
+    "knox": "~0.9.2"
   },
   "devDependencies": {
     "mocha": "*",
