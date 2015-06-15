@@ -163,9 +163,13 @@ module.exports = class knoxSteroids extends knox
     args.filename = prefixPath stringify(args.filename)
 
     @getFile args.filename, args.headers, (err, res) ->
-      chunks = []
-      res.on 'data', (chunk) -> chunks.push chunk
-      res.on 'end', -> args.cb null, JSON.parse(chunks)
+      return args.cb err if err
+      chunks = ''
+
+      res.on 'data', (chunk) ->
+        chunks += chunk.toString 'utf8'
+      res.on 'end', ->
+        args.cb null, JSON.parse chunks
       res.on 'error', args.cb
 
   getGzip: ->
