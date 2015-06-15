@@ -63,11 +63,11 @@ module.exports = class knoxSteroids extends knox
 
   deleteFolders: ->
     args = Args([
-      { filename : Args.ARRAY    | Args.Required }
+      { filenames : Args.ARRAY    | Args.Required }
       { cb       : Args.FUNCTION | Args.Required }
       ], arguments)
 
-    async.forEach args.filenames, @deleteFolder, args.cb
+    async.each args.filenames, @deleteFolder, args.cb
 
   isEmpty: ->
     args = Args([
