@@ -105,9 +105,10 @@ module.exports = class knoxSteroids extends knox
 
     buffer = new Buffer args.data
     zlib.gzip buffer, (err, encoded) =>
-      @putBuffer encoded, args.filename, args.headers, (err, res) ->
+      stream = @putBuffer encoded, args.filename, args.headers, (err, res) ->
         return args.cb err if err
         args.cb res.statusCode != 200, res
+      stream.on 'error', args.cb
 
   putGzipFile: ->
     args = Args([
@@ -146,9 +147,10 @@ module.exports = class knoxSteroids extends knox
     args.data = stringify args.data
     args.filename = prefixPath stringify(args.filename)
     buffer = new Buffer args.data
-    @putBuffer buffer, filename, headers (err, rest) ->
+    stream = @putBuffer buffer, filename, headers (err, rest) ->
       return args.cb err if err
       args.cb res.statusCode != 200, res
+    stream.on 'error', args.cb
 
   getJSON:  ->
     args = Args([
@@ -162,7 +164,7 @@ module.exports = class knoxSteroids extends knox
 
     args.filename = prefixPath stringify(args.filename)
 
-    @getFile args.filename, args.headers, (err, res) ->
+    stream = @getFile args.filename, args.headers, (err, res) ->
       return args.cb err if err
       chunks = ''
 
@@ -171,6 +173,8 @@ module.exports = class knoxSteroids extends knox
       res.on 'end', ->
         args.cb null, JSON.parse chunks
       res.on 'error', args.cb
+
+    stream.on 'error', args.cb
 
   getGzip: ->
     args = Args([
@@ -184,7 +188,7 @@ module.exports = class knoxSteroids extends knox
 
     args.filename = prefixPath stringify(args.filename)
 
-    @getFile args.filename, args.headers, (err, res) ->
+    stream = @getFile args.filename, args.headers, (err, res) ->
       return args.cb err if err
       chunks = []
 
@@ -195,6 +199,8 @@ module.exports = class knoxSteroids extends knox
         buffer = Buffer.concat chunks
         zlib.gunzip buffer, (err, decoded) ->
           args.cb err, decoded.toString 'utf8'
+
+    stream.on 'error', args.cb
 
   getJSONGzipped: (filename, headers, cb) ->
     args = Args([
