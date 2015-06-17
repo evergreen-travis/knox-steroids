@@ -1,10 +1,11 @@
 'use strict'
 
-os    = require 'os'
-knox  = require 'knox'
-zlib  = require 'zlib'
-async = require 'async'
-Args  = require 'args-js'
+os           = require 'os'
+knox         = require 'knox'
+zlib         = require 'zlib'
+async        = require 'async'
+Args         = require 'args-js'
+concatStream = require 'concat-stream'
 
 DEFAULT =
   headers: {}
@@ -105,10 +106,9 @@ module.exports = class knoxSteroids extends knox
 
     buffer = new Buffer args.data
     zlib.gzip buffer, (err, encoded) =>
-      stream = @putBuffer encoded, args.filename, args.headers, (err, res) ->
+      @putBuffer encoded, args.filename, args.headers, (err, res) ->
         return args.cb err if err
         args.cb res.statusCode != 200, res
-      stream.on 'error', args.cb
 
   putGzipFile: ->
     args = Args([
@@ -147,10 +147,9 @@ module.exports = class knoxSteroids extends knox
     args.data = stringify args.data
     args.filename = prefixPath stringify(args.filename)
     buffer = new Buffer args.data
-    stream = @putBuffer buffer, filename, headers (err, rest) ->
+    @putBuffer buffer, filename, headers (err, rest) ->
       return args.cb err if err
       args.cb res.statusCode != 200, res
-    stream.on 'error', args.cb
 
   getJSON:  ->
     args = Args([
@@ -164,19 +163,11 @@ module.exports = class knoxSteroids extends knox
 
     args.filename = prefixPath stringify(args.filename)
 
-    stream = @getFile args.filename, args.headers, (err, res) ->
+    @getFile args.filename, args.headers, (err, res) ->
       return args.cb err if err
-      chunks = ''
+      res.pipe concatStream (buffer) -> args.cb null, JSON.parse buffer
 
-      res.on 'data', (chunk) ->
-        chunks += chunk.toString 'utf8'
-      res.on 'end', ->
-        args.cb null, JSON.parse chunks
-      res.on 'error', args.cb
-
-    stream.on 'error', args.cb
-
-  getGzip: ->
+  getGzip: =>
     args = Args([
       [
         { filename : Args.STRING | Args.Required }
@@ -188,19 +179,9 @@ module.exports = class knoxSteroids extends knox
 
     args.filename = prefixPath stringify(args.filename)
 
-    stream = @getFile args.filename, args.headers, (err, res) ->
+    @getFile args.filename, args.headers, (err, res) ->
       return args.cb err if err
-      chunks = []
-
-      res.on 'data', (chunk) ->
-        chunks.push chunk
-
-      res.on 'end', ->
-        buffer = Buffer.concat chunks
-        zlib.gunzip buffer, (err, decoded) ->
-          args.cb err, decoded.toString 'utf8'
-
-    stream.on 'error', args.cb
+      res.pipe concatStream (buffer) -> zlib.gunzip buffer, args.cb
 
   getJSONGzipped: (filename, headers, cb) ->
     args = Args([
