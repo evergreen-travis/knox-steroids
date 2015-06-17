@@ -106,9 +106,10 @@ module.exports = class knoxSteroids extends knox
 
     buffer = new Buffer args.data
     zlib.gzip buffer, (err, encoded) =>
-      @putBuffer encoded, args.filename, args.headers, (err, res) ->
+      req = @putBuffer encoded, args.filename, args.headers, (err, res) ->
         return args.cb err if err
         args.cb res.statusCode != 200, res
+      req.on 'error', args.cb
 
   putGzipFile: ->
     args = Args([
@@ -126,9 +127,10 @@ module.exports = class knoxSteroids extends knox
 
     args.src = prefixPath(stringify args.src)
     args.filename = prefixPath stringify(args.filename)
-    @putFile args.src, args.filename, args.headers, (err, res) ->
+    req = @putFile args.src, args.filename, args.headers, (err, res) ->
       return args.cb err if err
       args.cb res.statusCode != 200, res
+    req.on 'error', args.cb
 
   putJSON: ->
     args = Args([
@@ -147,9 +149,10 @@ module.exports = class knoxSteroids extends knox
     args.data = stringify args.data
     args.filename = prefixPath stringify(args.filename)
     buffer = new Buffer args.data
-    @putBuffer buffer, filename, headers (err, rest) ->
+    req = @putBuffer buffer, filename, headers (err, rest) ->
       return args.cb err if err
       args.cb res.statusCode != 200, res
+    req.on 'error', args.cb
 
   getJSON:  ->
     args = Args([
@@ -163,9 +166,10 @@ module.exports = class knoxSteroids extends knox
 
     args.filename = prefixPath stringify(args.filename)
 
-    @getFile args.filename, args.headers, (err, res) ->
+    req = @getFile args.filename, args.headers, (err, res) ->
       return args.cb err if err
       res.pipe concatStream (buffer) -> args.cb null, JSON.parse buffer
+    req.on 'error', args.cb
 
   getGzip: =>
     args = Args([
@@ -179,9 +183,10 @@ module.exports = class knoxSteroids extends knox
 
     args.filename = prefixPath stringify(args.filename)
 
-    @getFile args.filename, args.headers, (err, res) ->
+    req = @getFile args.filename, args.headers, (err, res) ->
       return args.cb err if err
       res.pipe concatStream (buffer) -> zlib.gunzip buffer, args.cb
+    req.on 'error', args.cb
 
   getJSONGzipped: (filename, headers, cb) ->
     args = Args([
